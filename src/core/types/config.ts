@@ -61,8 +61,9 @@ export const MODEL_OPTIONS: Record<ModelProvider, { label: string; models: strin
   deepseek: {
     label: 'DeepSeek',
     models: [
-      'deepseek-chat',     // V3.2 non-thinking mode (Aug 2026)
-      'deepseek-reasoner', // V3.2 thinking/reasoning mode
+      'deepseek-v4-pro',             // V4-Pro-0813 旗舰推理
+      'deepseek-v4-flash',           // V4-Flash-0731 快速均衡
+      'deepseek-v4-flash-vision-exp', // 实验性多模态（支持图片输入）
     ],
     endpoint: 'https://api.deepseek.com/chat/completions',
   },

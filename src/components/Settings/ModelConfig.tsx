@@ -88,20 +88,29 @@ export function ModelConfig() {
       </div>
 
       {/* Model dropdown for standard providers */}
-      {!isCustom && (
-        <div>
-          <label className="text-gray-400 text-xs block mb-1">模型</label>
-          <select
-            className="w-full bg-[#1a1a2e] border border-[#2d2d44] text-gray-200 text-sm px-3 py-2 rounded"
-            value={modelConfig.model}
-            onChange={(e) => setModelConfig({ model: e.target.value })}
-          >
-            {MODEL_OPTIONS[modelConfig.provider].models.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-        </div>
-      )}
+      {!isCustom && (() => {
+        const models = MODEL_OPTIONS[modelConfig.provider].models;
+        // Fallback: if persisted model is no longer in the list, use the first available.
+        const safeModel = models.includes(modelConfig.model) ? modelConfig.model : models[0];
+        if (safeModel !== modelConfig.model) {
+          // Defer update to avoid setState during render
+          setTimeout(() => setModelConfig({ model: safeModel }), 0);
+        }
+        return (
+          <div>
+            <label className="text-gray-400 text-xs block mb-1">模型</label>
+            <select
+              className="w-full bg-[#1a1a2e] border border-[#2d2d44] text-gray-200 text-sm px-3 py-2 rounded"
+              value={safeModel}
+              onChange={(e) => setModelConfig({ model: e.target.value })}
+            >
+              {models.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+        );
+      })()}
 
       <button
         onClick={handleTestKey}
