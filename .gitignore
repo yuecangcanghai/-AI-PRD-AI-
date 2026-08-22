@@ -1,0 +1,10 @@
+node_modules
+dist
+.superpowers
+.env
+.env.*
+.DS_Store
+*.log
+.qoder
+.aicoding-chat-workspace
+Thumbs.db

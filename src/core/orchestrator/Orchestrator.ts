@@ -1,0 +1,324 @@
+import { PromptBuilder } from './PromptBuilder';
+import { Extractor } from './Extractor';
+import { StageController } from './StageController';
+import { getAdapter } from '../ai';
+import { useChatStore } from '../store/useChatStore';
+import { usePRDStore } from '../store/usePRDStore';
+import { useConfigStore } from '../store/useConfigStore';
+import { useStageStore, MAX_TURNS_PER_STAGE } from '../store/useStageStore';
+import { ChatMessage } from '../ai/ModelAdapter';
+import { Message, StructuredCard } from '../types/chat';
+import { Stage, STAGE_ORDER } from '../types/stage';
+import { PRDData } from '../types/prd';
+
+export class Orchestrator {
+  private promptBuilder = new PromptBuilder();
+  private extractor = new Extractor();
+  private stageController = new StageController();
+  private abortController: AbortController | null = null;
+
+  // Sends a user message and requests an assistant reply. `isCardSubmission` distinguishes
+  // card-answer messages (which continue the current turn) from fresh user turns.
+  async sendMessage(userContent: string, isCardSubmission = false): Promise<void> {
+    const chatStore = useChatStore.getState();
+    const configStore = useConfigStore.getState();
+    const prdStore = usePRDStore.getState();
+
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: userContent,
+      timestamp: Date.now(),
+    };
+    chatStore.addMessage(userMessage);
+
+    const stageState = useStageStore.getState();
+    // Fresh user input starts a new turn; card answers continue the same turn.
+    const upcomingTurn = stageState.turnsAtStage + (isCardSubmission ? 0 : 1);
+    const isLastAllowedTurn = upcomingTurn >= MAX_TURNS_PER_STAGE;
+    const systemPrompt = isLastAllowedTurn
+      ? this.promptBuilder.buildTurnLimitNudge(stageState.currentStage, prdStore.prd, {
+          language: configStore.modelConfig.language,
+          askMode: configStore.modelConfig.askMode,
+        })
+      : this.promptBuilder.build(stageState.currentStage, prdStore.prd, {
+          language: configStore.modelConfig.language,
+          askMode: configStore.modelConfig.askMode,
+        });
+
+    const messages: ChatMessage[] = chatStore.messages
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+
+    const assistantMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      isStreaming: true,
+    };
+    chatStore.addMessage(assistantMessage);
+    chatStore.setStreaming(true);
+
+    let fullResponse = '';
+
+    this.abortController = getAdapter(configStore.modelConfig.provider).chat({
+      messages,
+      systemPrompt,
+      model: configStore.modelConfig.model,
+      temperature: configStore.modelConfig.temperature,
+      maxTokens: configStore.modelConfig.maxTokens,
+      apiKey: configStore.modelConfig.apiKey,
+      onChunk: (chunk: string) => {
+        fullResponse += chunk;
+        const { cleanText } = this.extractor.extract(fullResponse);
+        chatStore.updateLastAssistantMessage(cleanText);
+      },
+      onDone: () => {
+        chatStore.setStreaming(false);
+        const { cleanText, extracted } = this.extractor.extract(fullResponse);
+        chatStore.updateLastAssistantMessage(cleanText);
+
+        const card = this.extractor.extractCard(fullResponse);
+        if (card) {
+          chatStore.setLastAssistantCard(card);
+        }
+
+        if (extracted.length > 0) {
+          this.extractor.applyToStore(extracted);
+        }
+
+        // Count this assistant response as one turn, but only for fresh user inputs
+        // (card submissions continue the current turn and do not consume a new slot).
+        const latestPrd = usePRDStore.getState().prd;
+        if (!isCardSubmission) {
+          useStageStore.getState().incrementTurn();
+        }
+        const newTurnCount = useStageStore.getState().turnsAtStage;
+
+        // Try natural advance first; if it fails AND we have hit the turn ceiling,
+        // force advance so we never stall on a single stage for more than MAX_TURNS.
+        const advanced = this.stageController.tryAdvance(latestPrd);
+        if (!advanced && newTurnCount >= MAX_TURNS_PER_STAGE) {
+          this.stageController.tryAdvance(latestPrd, { force: true });
+        }
+
+        this.abortController = null;
+      },
+      onError: (error: Error) => {
+        chatStore.setStreaming(false);
+        chatStore.updateLastAssistantMessage(`⚠️ 出错了：${error.message}。请检查你的 API Key 和网络连接。`);
+        this.abortController = null;
+      },
+    });
+  }
+
+  abort(): void {
+    this.abortController?.abort();
+    this.abortController = null;
+    useChatStore.getState().setStreaming(false);
+  }
+
+  // Called when the user submits an interactive form card (efficient mode).
+  // Combines all field answers into a single formatted user message.
+  submitCard(messageId: string, card: StructuredCard, values: Record<string, string>): void {
+    useChatStore.getState().markCardSubmitted(messageId);
+    const lines = card.fields.map((f) => `- ${f.label}：${values[f.key]?.trim() || '（未填写）'}`);
+    const content = `【${card.title}】\n${lines.join('\n')}`;
+    this.sendMessage(content, /* isCardSubmission */ true);
+  }
+
+  // Triggers the product-brief onboarding flow: shows the brief card and inserts a
+  // short welcome message so the user knows what to do. Idempotent.
+  startOnboarding(): void {
+    const chatStore = useChatStore.getState();
+    if (useChatStore.getState().onboardingCard) return;
+    if (chatStore.messages.length === 0) {
+      const welcome: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: '👋 欢迎！在开始产品设计前，请先填写下方「产品设定」表单，我会基于这些信息帮你快速启动。',
+        timestamp: Date.now(),
+      };
+      chatStore.addMessage(welcome);
+    }
+    chatStore.showOnboardingCard();
+  }
+
+  // Submits the product-brief onboarding card: writes values into prd.meta, hides the
+  // card, then asks the LLM for a one-shot positioning review + 3 pain-point hypotheses.
+  async submitOnboarding(values: Record<string, string>): Promise<void> {
+    const chatStore = useChatStore.getState();
+    const configStore = useConfigStore.getState();
+    const prdStore = usePRDStore.getState();
+
+    // 1. Persist the brief into prd.meta.
+    prdStore.updateMeta({
+      projectName: (values.projectName || '').trim(),
+      oneLiner: (values.oneLiner || '').trim(),
+      targetMarket: (values.targetMarket || '') as PRDData['meta']['targetMarket'],
+      productForm: (values.productForm || '') as PRDData['meta']['productForm'],
+      coreProblem: (values.coreProblem || '') as PRDData['meta']['coreProblem'],
+      constraints: (values.constraints || '') as PRDData['meta']['constraints'],
+    });
+
+    // 2. Dismiss the onboarding card UI.
+    chatStore.dismissOnboardingCard();
+
+    // 3. Add a user message echoing the submitted brief (so the conversation is self-contained).
+    const briefLines = [
+      `【产品设定】`,
+      `- 产品名称：${values.projectName || '（未填写）'}`,
+      `- 一句话定位：${values.oneLiner || '（未填写）'}`,
+      `- 目标市场：${values.targetMarket || '（未填写）'}`,
+      `- 产品形态：${values.productForm || '（未填写）'}`,
+      `- 核心问题类型：${values.coreProblem || '（未填写）'}`,
+      `- 主要约束：${values.constraints || '（未填写）'}`,
+    ].join('\n');
+    chatStore.addMessage({
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: briefLines,
+      timestamp: Date.now(),
+    });
+
+    // 4. Prepare assistant placeholder and stream the positioning review.
+    chatStore.addMessage({
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      isStreaming: true,
+    });
+    chatStore.setStreaming(true);
+
+    const latestPrd = usePRDStore.getState().prd;
+    const systemPrompt = this.promptBuilder.buildBriefingReview(
+      latestPrd,
+      configStore.modelConfig.language,
+    );
+    const messages: ChatMessage[] = chatStore.messages
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+
+    let fullResponse = '';
+    this.abortController = getAdapter(configStore.modelConfig.provider).chat({
+      messages,
+      systemPrompt,
+      model: configStore.modelConfig.model,
+      temperature: configStore.modelConfig.temperature,
+      maxTokens: configStore.modelConfig.maxTokens,
+      apiKey: configStore.modelConfig.apiKey,
+      onChunk: (chunk: string) => {
+        fullResponse += chunk;
+        const { cleanText } = this.extractor.extract(fullResponse);
+        chatStore.updateLastAssistantMessage(cleanText);
+      },
+      onDone: () => {
+        chatStore.setStreaming(false);
+        const { cleanText } = this.extractor.extract(fullResponse);
+        chatStore.updateLastAssistantMessage(cleanText);
+        this.abortController = null;
+      },
+      onError: (error: Error) => {
+        chatStore.setStreaming(false);
+        chatStore.updateLastAssistantMessage(
+          `⚠️ 出错了：${error.message}。请检查你的 API Key 和网络连接。`,
+        );
+        this.abortController = null;
+      },
+    });
+  }
+
+  // Auto-cascade regeneration: after an upstream section is edited, sequentially
+  // clear and regenerate every downstream stage's structured data via silent AI calls.
+  async regenerateDownstream(fromStage: Stage): Promise<void> {
+    const chatStore = useChatStore.getState();
+    const configStore = useConfigStore.getState();
+    const fromIdx = STAGE_ORDER.indexOf(fromStage);
+    if (fromIdx < 0) return;
+    const downstream = STAGE_ORDER.slice(fromIdx + 1);
+    if (downstream.length === 0) return;
+
+    const note: Message = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: '⚙️ 检测到上游内容被修改，正在重新生成下游内容……',
+      timestamp: Date.now(),
+    };
+    chatStore.addMessage(note);
+    chatStore.setStreaming(true);
+
+    try {
+      for (const stage of downstream) {
+        this.clearStageData(stage);
+        const latestPrd = usePRDStore.getState().prd;
+        const systemPrompt = this.promptBuilder.buildRegeneration(
+          stage,
+          latestPrd,
+          configStore.modelConfig.language,
+        );
+        const full = await this.runSilent(systemPrompt, [
+          { role: 'user', content: '请基于最新上下文重新生成本阶段的结构化结论。' },
+        ]);
+        const { extracted } = this.extractor.extract(full);
+        if (extracted.length > 0) {
+          this.extractor.applyToStore(extracted);
+        }
+      }
+      chatStore.updateLastAssistantMessage('✅ 下游内容已根据修改重新生成完成。');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      chatStore.updateLastAssistantMessage(`⚠️ 重新生成中断或出错：${msg}`);
+    } finally {
+      chatStore.setStreaming(false);
+      this.abortController = null;
+    }
+  }
+
+  private clearStageData(stage: Stage): void {
+    const prdStore = usePRDStore.getState();
+    switch (stage) {
+      case Stage.CriticalValidation:
+        prdStore.clearValidation();
+        break;
+      case Stage.UserGroupAnalysis:
+        prdStore.clearUserGroups();
+        break;
+      case Stage.RequirementsDecomposition:
+        prdStore.clearRequirements();
+        break;
+      case Stage.PRDGeneration:
+        prdStore.clearFinalPRD();
+        break;
+      default:
+        break;
+    }
+  }
+
+  private runSilent(systemPrompt: string, messages: ChatMessage[]): Promise<string> {
+    const configStore = useConfigStore.getState();
+    return new Promise((resolve, reject) => {
+      let full = '';
+      this.abortController = getAdapter(configStore.modelConfig.provider).chat({
+        messages,
+        systemPrompt,
+        model: configStore.modelConfig.model,
+        temperature: configStore.modelConfig.temperature,
+        maxTokens: configStore.modelConfig.maxTokens,
+        apiKey: configStore.modelConfig.apiKey,
+        onChunk: (chunk: string) => {
+          full += chunk;
+        },
+        onDone: () => resolve(full),
+        onError: (error: Error) => reject(error),
+      });
+    });
+  }
+
+  getProgress(): number {
+    return this.stageController.getProgress(usePRDStore.getState().prd);
+  }
+}
+
+export const orchestrator = new Orchestrator();
