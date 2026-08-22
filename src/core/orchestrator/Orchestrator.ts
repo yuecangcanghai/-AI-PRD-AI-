@@ -128,6 +128,26 @@ export class Orchestrator {
     this.sendMessage(content, /* isCardSubmission */ true);
   }
 
+  // Starts the lightweight newbie guide flow: adds a friendly welcome message and
+  // sets the guide to step 1. Idempotent (safe to call multiple times).
+  startNewbieGuide(): void {
+    const chatStore = useChatStore.getState();
+    if (chatStore.newbieGuide.step > 0) return; // already started or done
+    if (chatStore.messages.length === 0) {
+      const welcome: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content:
+          '👋 嗨！别紧张，我们来随便聊聊。\n\n' +
+          '我会问你几个简单的问题，帮你把脑子里那个模糊的想法理清楚。' +
+          '不需要任何产品经验，像聊天一样就行。',
+        timestamp: Date.now(),
+      };
+      chatStore.addMessage(welcome);
+    }
+    chatStore.startNewbieGuide();
+  }
+
   // Triggers the product-brief onboarding flow: shows the brief card and inserts a
   // short welcome message so the user knows what to do. Idempotent.
   startOnboarding(): void {
@@ -143,6 +163,54 @@ export class Orchestrator {
       chatStore.addMessage(welcome);
     }
     chatStore.showOnboardingCard();
+  }
+
+  // Called when the newbie guide flow finishes: maps answers to onboarding fields
+  // and auto-submits the product brief (skipping the manual onboarding card).
+  // Guard: if onboarding data is already present, this was already processed.
+  async completeNewbieGuide(): Promise<void> {
+    const chatStore = useChatStore.getState();
+    const prdStore = usePRDStore.getState();
+    const a = chatStore.newbieGuide.answers;
+
+    // Prevent re-entry: if oneLiner already set (e.g. page refresh re-triggered subscribe), skip.
+    if (prdStore.prd.meta.oneLiner) return;
+
+    // Map guide answers → onboarding fields.
+    const values: Record<string, string> = {
+      projectName: '新产品',
+      oneLiner: a.whatToBuild || '',
+      targetUser: a.whoNeedsIt || '',
+      initialScene: a.whatSituation || '',
+      targetMarket: '',
+      productForm: '',
+      coreProblem: '',
+      constraints: a.currentSolution || '',
+    };
+
+    // Also persist the pain-depth hint into prd.meta.
+    prdStore.updateMeta({ painDepthHint: a.painDepth || '' });
+
+    // Add a personalized transition message summarizing what the user told us.
+    const summaryLines: string[] = [];
+    if (a.whatToBuild) summaryLines.push(`💡 你想做：**${a.whatToBuild}**`);
+    if (a.whoNeedsIt) summaryLines.push(`👤 最需要的人：**${a.whoNeedsIt}**`);
+    if (a.whatSituation) summaryLines.push(`🎬 典型场景：**${a.whatSituation}**`);
+    if (a.painDepth) summaryLines.push(`🔍 痛点判断：**${a.painDepth}**`);
+
+    const summary = summaryLines.length > 0
+      ? `\n\n你的想法概览：\n${summaryLines.join('\n')}`
+      : '';
+
+    chatStore.addMessage({
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: `🎉 很好！你的想法已经有了初步轮廓。${summary}\n\n接下来我会基于这些信息，帮你深入挖掘真正的痛点。`,
+      timestamp: Date.now(),
+    });
+
+    // Reuse the existing submitOnboarding flow (writes meta, streams AI review).
+    await this.submitOnboarding(values);
   }
 
   // Submits the product-brief onboarding card: writes values into prd.meta, hides the

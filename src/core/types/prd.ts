@@ -68,6 +68,8 @@ export interface PRDData {
     // V-model: "谁的什么问题" — the user must state who and a first-cut scenario up front
     targetUser: string;       // e.g. "初中班主任", "我们小区带娃的妈妈"
     initialScene: string;     // e.g. "每学期排家访路线时"
+    // Newbie guide: user's self-assessment of pain depth
+    painDepthHint: string;    // e.g. "表层", "深层", "不确定"
     createdAt: string;
     updatedAt: string;
     model: string;
@@ -107,6 +109,7 @@ export function createEmptyPRD(): PRDData {
       constraints: '',
       targetUser: '',
       initialScene: '',
+      painDepthHint: '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       model: '',

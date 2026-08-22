@@ -5,6 +5,7 @@ import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
 import { ChatStageChecklist } from './ChatStageChecklist';
 import { OnboardingCard } from './OnboardingCard';
+import { NewbieGuideFlow } from './NewbieGuideFlow';
 import { orchestrator } from '../../core/orchestrator/Orchestrator';
 import { Message } from '../../core/types/chat';
 
@@ -20,17 +21,16 @@ const WELCOME_MESSAGE: Message = {
 };
 
 export function ChatPanel() {
-  const { messages, addMessage, onboardingCard } = useChatStore();
+  const { messages, addMessage, onboardingCard, newbieGuide } = useChatStore();
   const { prd } = usePRDStore();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // First-load onboarding: when the chat is empty and the product brief has not been
-  // filled yet, automatically show the onboarding card (which inserts its own welcome
-  // message). Otherwise fall back to the legacy generic welcome.
+  // First-load: show newbie guide → onboarding card → welcome (in priority order).
   useEffect(() => {
-    if (messages.length > 0 || onboardingCard) return;
+    if (messages.length > 0 || onboardingCard || newbieGuide.step > 0) return;
     if (!prd.meta.oneLiner) {
-      orchestrator.startOnboarding();
+      // Start the lightweight newbie guide instead of the full onboarding card.
+      orchestrator.startNewbieGuide();
     } else {
       addMessage(WELCOME_MESSAGE);
     }
@@ -53,6 +53,7 @@ export function ChatPanel() {
             <MessageBubble key={msg.id} message={msg} />
           ))}
         </div>
+        {newbieGuide.step >= 1 && !newbieGuide.done && <NewbieGuideFlow />}
         {onboardingCard && <OnboardingCard />}
       </div>
       <ChatInput onSend={handleSend} />

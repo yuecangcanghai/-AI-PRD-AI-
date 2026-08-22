@@ -1,4 +1,5 @@
 import { usePRDStore } from '../../core/store/usePRDStore';
+import { useChatStore } from '../../core/store/useChatStore';
 import { useStageStore, MAX_TURNS_PER_STAGE } from '../../core/store/useStageStore';
 import { Stage, STAGE_LABELS } from '../../core/types/stage';
 import { PRDData } from '../../core/types/prd';
@@ -65,9 +66,19 @@ function getChecklist(stage: Stage, prd: PRDData): ChecklistItem[] {
 export function ChatStageChecklist() {
   const { prd } = usePRDStore();
   const { currentStage, turnsAtStage } = useStageStore();
+  const { newbieGuide } = useChatStore();
   const progress = orchestrator.getProgress();
   const items = getChecklist(currentStage, prd);
   const doneCount = items.filter((i) => i.done).length;
+
+  // Newbie guide: shown before the first professional stage.
+  const guideDone = newbieGuide.done;
+  const guideActive = !guideDone && newbieGuide.step >= 1;
+  const guideLabel = guideDone
+    ? (newbieGuide.skipped ? '已跳过' : '已完成')
+    : guideActive
+      ? `进行中 (${newbieGuide.step - 1}/5)`
+      : '未开始';
 
   return (
     <div className="px-4 py-2.5 border-b border-[#2d2d44] bg-[#0d0d18]">
@@ -85,6 +96,15 @@ export function ChatStageChecklist() {
       </div>
 
       <div className="flex flex-col gap-1">
+        {/* Newbie guide entry */}
+        <div className="flex items-center gap-1.5 text-[11px] mb-0.5">
+          <span className={guideDone ? 'text-[#4ecdc4]' : guideActive ? 'text-yellow-400' : 'text-gray-600'}>
+            {guideDone ? '✓' : guideActive ? '●' : '○'}
+          </span>
+          <span className={guideDone ? 'text-gray-400' : guideActive ? 'text-gray-200 font-bold' : 'text-gray-500'}>
+            新手引导：{guideLabel}
+          </span>
+        </div>
         {items.map((item, i) => (
           <div key={i} className="flex items-center gap-1.5 text-[11px]">
             <span className={item.done ? 'text-[#4ecdc4]' : 'text-gray-600'}>

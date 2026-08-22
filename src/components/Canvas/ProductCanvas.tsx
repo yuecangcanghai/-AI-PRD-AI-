@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useChatStore } from '../../core/store/useChatStore';
 import { usePRDStore } from '../../core/store/usePRDStore';
 import { useStageStore } from '../../core/store/useStageStore';
 import { Stage, STAGE_ORDER } from '../../core/types/stage';
@@ -17,6 +18,7 @@ import {
 export function ProductCanvas() {
   const { prd } = usePRDStore();
   const { currentStage } = useStageStore();
+  const { newbieGuide } = useChatStore();
   const progress = orchestrator.getProgress();
   const [editing, setEditing] = useState<Stage | null>(null);
 
@@ -54,6 +56,28 @@ export function ProductCanvas() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
+        {/* Newbie guide status banner */}
+        {!newbieGuide.done && (
+          <div className="mb-3 border border-[#4ecdc4]/30 bg-[#101028] rounded-lg p-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">💡</span>
+              <div>
+                <p className="text-white text-xs font-bold">新手引导</p>
+                <p className="text-gray-400 text-[10px]">
+                  {newbieGuide.step >= 1
+                    ? `进行中 (${newbieGuide.step - 1}/5) · 请在左侧回答问题`
+                    : '请在左侧聊天窗口开始引导'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        {newbieGuide.done && newbieGuide.skipped && !prd.meta.oneLiner && (
+          <div className="mb-3 border border-yellow-500/30 bg-[#1a1a10] rounded-lg p-3">
+            <p className="text-yellow-400 text-xs font-bold">⚠️ 引导已跳过</p>
+            <p className="text-gray-400 text-[10px]">我们稍后再完善这些基础信息</p>
+          </div>
+        )}
         <SectionCard
           title="1. 痛点描述"
           status={getSectionStatus(Stage.PainPointDiscovery)}

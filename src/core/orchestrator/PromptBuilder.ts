@@ -60,7 +60,8 @@ export class PromptBuilder {
   buildBriefingReview(prd: PRDData, language: Language): string {
     const langInstruction = LANGUAGE_INSTRUCTIONS[language];
     const meta = prd.meta;
-    return `${BASE_PERSONA}\n\n【语言要求】\n${langInstruction}\n\n【任务：产品设定初评 + V 模型起点检查】\n用户刚刚提交了一份产品设定表单。你需要用专业、简短的顾问口吻给出回复，结构如下：\n\n1. **设定摘要**：用 1-2 句复述你理解的产品定位，并明确指出 V 模型的起点——"谁"在"什么场景"下有什么麻烦。\n2. **V 模型照妖镜**：用 Ford 的"更快的马"思维检查一下用户的目标用户和场景描述，指出 1 个潜在假设或风险（不要超过 2 条）。\n3. **3 个值得验证的痛点假设**：基于该设定，列出 3 个最可能成立的**深层**痛点（不是表面症状），每个一句话，并标注优先级（高/中/低）和它背后那层"为什么"。\n4. **下一步引导**：用一道选择题问用户"接下来想先验证哪一个？A / B / C / 或自己描述"。\n\n注意：\n- 不要输出表单卡片。\n- 不要输出 EXTRACT 块（这一步只输出对话文本）。\n- 不要输出 STAGE_COMPLETE 标记。\n- 保持简洁，总字数不超过 350 字。\n\n---\n\n【用户的产品设定】\n- 产品名称：${meta.projectName || '（未填写）'}\n- 一句话定位：${meta.oneLiner || '（未填写）'}\n- 为谁解决：${meta.targetUser || '（未填写）'}\n- 发生在什么场景：${meta.initialScene || '（未填写）'}\n- 目标市场：${meta.targetMarket || '（未填写）'}\n- 产品形态：${meta.productForm || '（未填写）'}\n- 核心问题类型：${meta.coreProblem || '（未填写）'}\n- 主要约束：${meta.constraints || '（未填写）'}\n`;
+    return `${BASE_PERSONA}\n\n【语言要求】\n${langInstruction}\n\n【任务：产品设定初评 + V 模型起点检查】\n用户刚刚提交了一份产品设定表单。你需要用专业、简短的顾问口吻给出回复，结构如下：\n\n1. **设定摘要**：用 1-2 句复述你理解的产品定位，并明确指出 V 模型的起点——"谁"在"什么场景"下有什么麻烦。\n2. **V 模型照妖镜**：用 Ford 的"更快的马"思维检查一下用户的目标用户和场景描述，指出 1 个潜在假设或风险（不要超过 2 条）。\n3. **3 个值得验证的痛点假设**：基于该设定，列出 3 个最可能成立的**深层**痛点（不是表面症状），每个一句话，并标注优先级（高/中/低）和它背后那层"为什么"。\n4. **下一步引导**：用一道选择题问用户"接下来想先验证哪一个？A / B / C / 或自己描述"。\n\n注意：\n- 不要输出表单卡片。\n- 不要输出 EXTRACT 块（这一步只输出对话文本）。\n- 不要输出 STAGE_COMPLETE 标记。\n- 保持简洁，总字数不超过 350 字。\n\n---\n\n【用户的产品设定】\n- 产品名称：${meta.projectName || '（未填写）'}\n- 一句话定位：${meta.oneLiner || '（未填写）'}\n- 为谁解决：${meta.targetUser || '（未填写）'}\n- 发生在什么场景：${meta.initialScene || '（未填写）'}\n- 目标市场：${meta.targetMarket || '（未填写）'}\n- 产品形态：${meta.productForm || '（未填写）'}\n- 核心问题类型：${meta.coreProblem || '（未填写）'}\n- 主要约束：${meta.constraints || '（未填写）'}\n- 用户对痛点深度的判断：${meta.painDepthHint || '（未填写）'}
+`;
   }
 
   // Prompt injected when the current stage has reached the turn ceiling: force wrap-up,
@@ -301,6 +302,9 @@ feasibilityScore 范围 1-10，基于你对可行性的判断。
       if (meta.productForm) parts.push(`- 产品形态：${meta.productForm}`);
       if (meta.coreProblem) parts.push(`- 核心问题类型：${meta.coreProblem}`);
       if (meta.constraints) parts.push(`- 主要约束：${meta.constraints}`);
+      if (meta.painDepthHint) parts.push(`- 用户对痛点深度的判断：${meta.painDepthHint}`);
+    } else {
+      parts.push('（产品基础信息尚未完善，我们稍后再补充）');
     }
 
     if (prd.painPoints.length > 0) {
