@@ -18,7 +18,13 @@ let _prevDone = useChatStore.getState().newbieGuide.done;
 useChatStore.subscribe((state) => {
   const { done, skipped } = state.newbieGuide;
   if (done && !_prevDone && !skipped) {
-    orchestrator.completeNewbieGuide();
+    console.log('[storeSubscribers] Firing completeNewbieGuide');
+    orchestrator.completeNewbieGuide().catch((err) => {
+      // Belt-and-suspenders: the Orchestrator already has a try-catch inside
+      // completeNewbieGuide, but we catch here too so that NO unhandled
+      // rejection can ever escape to crash the app.
+      console.error('[storeSubscribers] completeNewbieGuide failed:', err);
+    });
   }
   _prevDone = done;
 });

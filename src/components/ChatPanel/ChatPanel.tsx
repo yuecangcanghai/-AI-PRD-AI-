@@ -21,12 +21,14 @@ const WELCOME_MESSAGE: Message = {
 };
 
 export function ChatPanel() {
-  const { messages, addMessage, onboardingCard, newbieGuide } = useChatStore();
+  const { messages, addMessage, onboardingCard, newbieGuide, rehydrated } = useChatStore();
   const { prd } = usePRDStore();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // First-load: show newbie guide → onboarding card → welcome (in priority order).
+  // Wait for zustand persist to finish restoring localStorage before deciding.
   useEffect(() => {
+    if (!rehydrated) return;
     if (messages.length > 0 || onboardingCard || newbieGuide.step > 0) return;
     if (!prd.meta.oneLiner) {
       // Start the lightweight newbie guide instead of the full onboarding card.
@@ -34,7 +36,7 @@ export function ChatPanel() {
     } else {
       addMessage(WELCOME_MESSAGE);
     }
-  }, []);
+  }, [rehydrated]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });

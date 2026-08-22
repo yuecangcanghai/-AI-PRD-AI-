@@ -28,6 +28,8 @@ interface ChatState {
   isGenerating: boolean;
   onboardingCard: OnboardingCard | null;
   newbieGuide: NewbieGuideState;
+  /** Set to true once zustand persist has finished restoring from localStorage. */
+  rehydrated: boolean;
   startNewbieGuide: () => void;
   answerNewbieGuide: (answer: string) => void;
   skipNewbieGuide: () => void;
@@ -48,6 +50,7 @@ export const useChatStore = create<ChatState>()(
       isGenerating: false,
       onboardingCard: null,
       newbieGuide: { step: 0, answers: {}, done: false, skipped: false },
+      rehydrated: false,
       startNewbieGuide: () =>
         set((state) => {
           if (state.newbieGuide.step > 0) return state; // already started
@@ -109,6 +112,12 @@ export const useChatStore = create<ChatState>()(
     {
       name: 'productforge-chat',
       version: 1,
+      onRehydrateStorage: () => {
+        // Called after persist finishes restoring from localStorage.
+        return (state) => {
+          if (state) state.rehydrated = true;
+        };
+      },
       merge: (persisted, current) => {
         const p = persisted as Partial<ChatState> | undefined;
         return {

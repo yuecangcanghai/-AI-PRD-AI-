@@ -181,48 +181,65 @@ export class Orchestrator {
   // and auto-submits the product brief (skipping the manual onboarding card).
   // Guard: if onboarding data is already present, this was already processed.
   async completeNewbieGuide(): Promise<void> {
+    console.log('[completeNewbieGuide] Start');
     const chatStore = useChatStore.getState();
     const prdStore = usePRDStore.getState();
     const a = chatStore.newbieGuide.answers;
 
     // Prevent re-entry: if oneLiner already set (e.g. page refresh re-triggered subscribe), skip.
-    if (prdStore.prd.meta.oneLiner) return;
+    if (prdStore.prd.meta.oneLiner) {
+      console.log('[completeNewbieGuide] Already processed (oneLiner exists), skipping');
+      return;
+    }
 
-    // Map guide answers → onboarding fields.
-    const values: Record<string, string> = {
-      projectName: '新产品',
-      oneLiner: a.whatToBuild || '',
-      targetUser: a.whoNeedsIt || '',
-      initialScene: a.whatSituation || '',
-      targetMarket: '',
-      productForm: '',
-      coreProblem: '',
-      constraints: a.currentSolution || '',
-    };
+    try {
+      // Map guide answers → onboarding fields.
+      const values: Record<string, string> = {
+        projectName: '新产品',
+        oneLiner: a.whatToBuild || '',
+        targetUser: a.whoNeedsIt || '',
+        initialScene: a.whatSituation || '',
+        targetMarket: '',
+        productForm: '',
+        coreProblem: '',
+        constraints: a.currentSolution || '',
+      };
 
-    // Also persist the pain-depth hint into prd.meta.
-    prdStore.updateMeta({ painDepthHint: a.painDepth || '' });
+      // Also persist the pain-depth hint into prd.meta.
+      prdStore.updateMeta({ painDepthHint: a.painDepth || '' });
 
-    // Add a personalized transition message summarizing what the user told us.
-    const summaryLines: string[] = [];
-    if (a.whatToBuild) summaryLines.push(`💡 你想做：**${a.whatToBuild}**`);
-    if (a.whoNeedsIt) summaryLines.push(`👤 最需要的人：**${a.whoNeedsIt}**`);
-    if (a.whatSituation) summaryLines.push(`🎬 典型场景：**${a.whatSituation}**`);
-    if (a.painDepth) summaryLines.push(`🔍 痛点判断：**${a.painDepth}**`);
+      // Add a personalized transition message summarizing what the user told us.
+      const summaryLines: string[] = [];
+      if (a.whatToBuild) summaryLines.push(`💡 你想做：**${a.whatToBuild}**`);
+      if (a.whoNeedsIt) summaryLines.push(`👤 最需要的人：**${a.whoNeedsIt}**`);
+      if (a.whatSituation) summaryLines.push(`🎬 典型场景：**${a.whatSituation}**`);
+      if (a.painDepth) summaryLines.push(`🔍 痛点判断：**${a.painDepth}**`);
 
-    const summary = summaryLines.length > 0
-      ? `\n\n你的想法概览：\n${summaryLines.join('\n')}`
-      : '';
+      const summary = summaryLines.length > 0
+        ? `\n\n你的想法概览：\n${summaryLines.join('\n')}`
+        : '';
 
-    chatStore.addMessage({
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      content: `🎉 很好！你的想法已经有了初步轮廓。${summary}\n\n接下来我会基于这些信息，帮你深入挖掘真正的痛点。`,
-      timestamp: Date.now(),
-    });
+      chatStore.addMessage({
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `🎉 很好！你的想法已经有了初步轮廓。${summary}\n\n接下来我会基于这些信息，帮你深入挖掘真正的痛点。`,
+        timestamp: Date.now(),
+      });
 
-    // Reuse the existing submitOnboarding flow (writes meta, streams AI review).
-    await this.submitOnboarding(values);
+      // Reuse the existing submitOnboarding flow (writes meta, streams AI review).
+      console.log('[completeNewbieGuide] Calling submitOnboarding');
+      await this.submitOnboarding(values);
+      console.log('[completeNewbieGuide] Done');
+    } catch (err) {
+      // Graceful degradation: never let an unhandled rejection crash the app.
+      console.error('[completeNewbieGuide] Unexpected error:', err);
+      chatStore.addMessage({
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: '⚠️ 处理你的回答时出了点小问题，但你的答案已经保存了。请检查一下 API Key 设置，然后刷新页面试试。',
+        timestamp: Date.now(),
+      });
+    }
   }
 
   // Submits the product-brief onboarding card: writes values into prd.meta, hides the
@@ -267,7 +284,20 @@ export class Orchestrator {
       timestamp: Date.now(),
     });
 
-    // 4. Prepare assistant placeholder and stream the positioning review.
+    // 4. API Key guard: if missing, show a friendly prompt instead of hanging on a failed fetch.
+    if (!configStore.modelConfig.apiKey) {
+      console.log('[submitOnboarding] No API key, showing prompt');
+      chatStore.addMessage({
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: '⚠️ 你的想法已经保存好了！不过我需要一个 API Key 才能帮你深入分析。请点击右上角 ⚙️ 设置，填入你的 API Key 后刷新页面即可继续。',
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
+    // 5. Prepare assistant placeholder and stream the positioning review.
+    console.log('[submitOnboarding] Starting API stream');
     chatStore.addMessage({
       id: crypto.randomUUID(),
       role: 'assistant',
