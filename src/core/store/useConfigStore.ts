@@ -16,11 +16,13 @@ export const useConfigStore = create<ConfigState>()(
       modelConfig: {
         provider: 'openai',
         apiKey: '',
-        model: 'gpt-4o',
+        model: 'gpt-5',
         temperature: 0.7,
         maxTokens: 4096,
         language: 'zh',
         askMode: 'standard',
+        customEndpoint: '',
+        customModel: '',
       },
       setModelConfig: (config) =>
         set((state) => ({ modelConfig: { ...state.modelConfig, ...config } })),
@@ -30,7 +32,7 @@ export const useConfigStore = create<ConfigState>()(
             ...state.modelConfig,
             provider,
             apiKey: '',
-            model: MODEL_OPTIONS[provider].models[0],
+            model: provider === 'custom' ? '' : MODEL_OPTIONS[provider].models[0],
           },
         })),
       setLanguage: (language) =>

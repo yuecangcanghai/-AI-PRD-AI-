@@ -6,6 +6,7 @@ export function ModelConfig() {
   const { modelConfig, setModelConfig, setProvider } = useConfigStore();
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
+  const isCustom = modelConfig.provider === 'custom';
 
   const handleTestKey = async () => {
     setTesting(true);
@@ -13,7 +14,11 @@ export function ModelConfig() {
     try {
       const { getAdapter } = await import('../../core/ai');
       const adapter = getAdapter(modelConfig.provider);
-      const valid = await adapter.validateKey(modelConfig.apiKey, modelConfig.model);
+      const model = isCustom ? (modelConfig.customModel || modelConfig.model) : modelConfig.model;
+      // Custom adapter uses a different validateKey signature with endpoint
+      const valid = isCustom
+        ? await (adapter as any).validateKey(modelConfig.apiKey, model, modelConfig.customEndpoint)
+        : await adapter.validateKey(modelConfig.apiKey, model);
       setTestResult(valid ? 'success' : 'error');
     } catch {
       setTestResult('error');
@@ -36,6 +41,35 @@ export function ModelConfig() {
         </select>
       </div>
 
+      {/* Custom provider fields */}
+      {isCustom && (
+        <>
+          <div>
+            <label className="text-gray-400 text-xs block mb-1">API 地址（Base URL）</label>
+            <input
+              type="text"
+              className="w-full bg-[#1a1a2e] border border-[#2d2d44] text-gray-200 text-sm px-3 py-2 rounded"
+              placeholder="https://your-api.com/v1/chat/completions"
+              value={modelConfig.customEndpoint}
+              onChange={(e) => setModelConfig({ customEndpoint: e.target.value })}
+            />
+            <p className="text-gray-500 text-[10px] mt-1">
+              支持所有 OpenAI 兼容接口（Ollama、vLLM、LM Studio、OpenRouter、Groq 等）
+            </p>
+          </div>
+          <div>
+            <label className="text-gray-400 text-xs block mb-1">模型名称</label>
+            <input
+              type="text"
+              className="w-full bg-[#1a1a2e] border border-[#2d2d44] text-gray-200 text-sm px-3 py-2 rounded"
+              placeholder="例如：llama3.1、qwen2.5-72b、mistral-large"
+              value={modelConfig.customModel}
+              onChange={(e) => setModelConfig({ customModel: e.target.value })}
+            />
+          </div>
+        </>
+      )}
+
       <div>
         <label className="text-gray-400 text-xs block mb-1">API Key</label>
         <input
@@ -47,22 +81,25 @@ export function ModelConfig() {
         />
       </div>
 
-      <div>
-        <label className="text-gray-400 text-xs block mb-1">模型</label>
-        <select
-          className="w-full bg-[#1a1a2e] border border-[#2d2d44] text-gray-200 text-sm px-3 py-2 rounded"
-          value={modelConfig.model}
-          onChange={(e) => setModelConfig({ model: e.target.value })}
-        >
-          {MODEL_OPTIONS[modelConfig.provider].models.map((m) => (
-            <option key={m} value={m}>{m}</option>
-          ))}
-        </select>
-      </div>
+      {/* Model dropdown for standard providers */}
+      {!isCustom && (
+        <div>
+          <label className="text-gray-400 text-xs block mb-1">模型</label>
+          <select
+            className="w-full bg-[#1a1a2e] border border-[#2d2d44] text-gray-200 text-sm px-3 py-2 rounded"
+            value={modelConfig.model}
+            onChange={(e) => setModelConfig({ model: e.target.value })}
+          >
+            {MODEL_OPTIONS[modelConfig.provider].models.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <button
         onClick={handleTestKey}
-        disabled={testing || !modelConfig.apiKey}
+        disabled={testing || !modelConfig.apiKey || (isCustom && !modelConfig.customEndpoint)}
         className="bg-[#2d2d44] text-gray-200 text-sm px-4 py-2 rounded hover:bg-[#3d3d54] transition-colors disabled:opacity-40"
       >
         {testing ? '验证中...' : '验证 API Key'}

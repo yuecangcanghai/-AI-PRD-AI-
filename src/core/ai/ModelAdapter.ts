@@ -10,6 +10,7 @@ export interface StreamOptions {
   temperature: number;
   maxTokens: number;
   apiKey: string;
+  endpoint?: string;
   onChunk: (chunk: string) => void;
   onDone: () => void;
   onError: (error: Error) => void;

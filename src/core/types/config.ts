@@ -1,4 +1,4 @@
-export type ModelProvider = 'openai' | 'claude' | 'deepseek' | 'qwen' | 'zhipu';
+export type ModelProvider = 'openai' | 'claude' | 'deepseek' | 'qwen' | 'zhipu' | 'custom';
 
 export type Language = 'zh' | 'en' | 'ja';
 
@@ -12,6 +12,9 @@ export interface ModelConfig {
   maxTokens: number;
   language: Language;
   askMode: AskMode;
+  // Custom provider fields
+  customEndpoint: string;
+  customModel: string;
 }
 
 export const LANGUAGE_OPTIONS: Record<Language, string> = {
@@ -35,27 +38,32 @@ export const ASK_MODE_OPTIONS: Record<AskMode, string> = {
 export const MODEL_OPTIONS: Record<ModelProvider, { label: string; models: string[]; endpoint: string }> = {
   openai: {
     label: 'OpenAI',
-    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
+    models: ['gpt-5', 'gpt-5-mini', 'gpt-4.1', 'gpt-4.1-mini'],
     endpoint: 'https://api.openai.com/v1/chat/completions',
   },
   claude: {
     label: 'Anthropic Claude',
-    models: ['claude-3-5-sonnet-20241022', 'claude-3-haiku-20240307'],
+    models: ['claude-opus-5', 'claude-sonnet-5', 'claude-sonnet-4'],
     endpoint: 'https://api.anthropic.com/v1/messages',
   },
   deepseek: {
     label: 'DeepSeek',
-    models: ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'],
+    models: ['deepseek-chat', 'deepseek-reasoner'],
     endpoint: 'https://api.deepseek.com/chat/completions',
   },
   qwen: {
     label: '通义千问',
-    models: ['qwen-turbo', 'qwen-plus', 'qwen-max'],
+    models: ['qwen-max', 'qwen-plus', 'qwen-turbo'],
     endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
   },
   zhipu: {
     label: '智谱 GLM',
-    models: ['glm-4-flash', 'glm-4'],
+    models: ['glm-5.3', 'glm-5.2', 'glm-5.1'],
     endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+  },
+  custom: {
+    label: '自定义（OpenAI 兼容）',
+    models: [],
+    endpoint: '',
   },
 };

@@ -17,6 +17,16 @@ export class Orchestrator {
   private stageController = new StageController();
   private abortController: AbortController | null = null;
 
+  // Resolves the effective model name and endpoint for the current provider.
+  // For 'custom' provider, uses customModel/customEndpoint; for others, uses the standard config.
+  private resolveModel(): { model: string; endpoint?: string } {
+    const cfg = useConfigStore.getState().modelConfig;
+    if (cfg.provider === 'custom') {
+      return { model: cfg.customModel || cfg.model, endpoint: cfg.customEndpoint || undefined };
+    }
+    return { model: cfg.model };
+  }
+
   // Sends a user message and requests an assistant reply. `isCardSubmission` distinguishes
   // card-answer messages (which continue the current turn) from fresh user turns.
   async sendMessage(userContent: string, isCardSubmission = false): Promise<void> {
@@ -61,14 +71,16 @@ export class Orchestrator {
     chatStore.setStreaming(true);
 
     let fullResponse = '';
+    const { model: effectiveModel, endpoint: effectiveEndpoint } = this.resolveModel();
 
     this.abortController = getAdapter(configStore.modelConfig.provider).chat({
       messages,
       systemPrompt,
-      model: configStore.modelConfig.model,
+      model: effectiveModel,
       temperature: configStore.modelConfig.temperature,
       maxTokens: configStore.modelConfig.maxTokens,
       apiKey: configStore.modelConfig.apiKey,
+      endpoint: effectiveEndpoint,
       onChunk: (chunk: string) => {
         fullResponse += chunk;
         const { cleanText } = this.extractor.extract(fullResponse);
@@ -275,13 +287,15 @@ export class Orchestrator {
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
     let fullResponse = '';
+    const { model: effModel, endpoint: effEndpoint } = this.resolveModel();
     this.abortController = getAdapter(configStore.modelConfig.provider).chat({
       messages,
       systemPrompt,
-      model: configStore.modelConfig.model,
+      model: effModel,
       temperature: configStore.modelConfig.temperature,
       maxTokens: configStore.modelConfig.maxTokens,
       apiKey: configStore.modelConfig.apiKey,
+      endpoint: effEndpoint,
       onChunk: (chunk: string) => {
         fullResponse += chunk;
         const { cleanText } = this.extractor.extract(fullResponse);
@@ -377,15 +391,17 @@ export class Orchestrator {
 
   private runSilent(systemPrompt: string, messages: ChatMessage[]): Promise<string> {
     const configStore = useConfigStore.getState();
+    const { model: silentModel, endpoint: silentEndpoint } = this.resolveModel();
     return new Promise((resolve, reject) => {
       let full = '';
       this.abortController = getAdapter(configStore.modelConfig.provider).chat({
         messages,
         systemPrompt,
-        model: configStore.modelConfig.model,
+        model: silentModel,
         temperature: configStore.modelConfig.temperature,
         maxTokens: configStore.modelConfig.maxTokens,
         apiKey: configStore.modelConfig.apiKey,
+        endpoint: silentEndpoint,
         onChunk: (chunk: string) => {
           full += chunk;
         },
