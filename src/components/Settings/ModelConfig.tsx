@@ -36,38 +36,44 @@ export function ModelConfig() {
           onChange={(e) => setProvider(e.target.value as ModelProvider)}
         >
           {(Object.entries(MODEL_OPTIONS) as [ModelProvider, typeof MODEL_OPTIONS[ModelProvider]][]).map(([key, val]) => (
-            <option key={key} value={key}>{val.label}</option>
+            <>
+              {key === 'custom' && <option key="__sep" disabled>─────────────</option>}
+              <option key={key} value={key}>{val.label}</option>
+            </>
           ))}
         </select>
       </div>
 
-      {/* Custom provider fields */}
+      {/* Custom provider fields — visually distinct panel */}
       {isCustom && (
-        <>
-          <div>
-            <label className="text-gray-400 text-xs block mb-1">API 地址（Base URL）</label>
-            <input
-              type="text"
-              className="w-full bg-[#1a1a2e] border border-[#2d2d44] text-gray-200 text-sm px-3 py-2 rounded"
-              placeholder="https://your-api.com/v1/chat/completions"
-              value={modelConfig.customEndpoint}
-              onChange={(e) => setModelConfig({ customEndpoint: e.target.value })}
-            />
-            <p className="text-gray-500 text-[10px] mt-1">
-              支持所有 OpenAI 兼容接口（Ollama、vLLM、LM Studio、OpenRouter、Groq 等）
-            </p>
+        <div className="border border-[#4ecdc4]/20 rounded-lg p-3 bg-[#0a1a1a]">
+          <p className="text-[#4ecdc4] text-xs font-bold mb-3">🔧 自定义模型配置</p>
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className="text-gray-400 text-xs block mb-1">API 地址（Base URL）</label>
+              <input
+                type="text"
+                className="w-full bg-[#1a1a2e] border border-[#2d2d44] text-gray-200 text-sm px-3 py-2 rounded"
+                placeholder="https://your-api.com/v1/chat/completions"
+                value={modelConfig.customEndpoint}
+                onChange={(e) => setModelConfig({ customEndpoint: e.target.value })}
+              />
+              <p className="text-gray-500 text-[10px] mt-1">
+                支持所有 OpenAI 兼容接口（Ollama、vLLM、LM Studio、OpenRouter、Groq 等）
+              </p>
+            </div>
+            <div>
+              <label className="text-gray-400 text-xs block mb-1">模型名称</label>
+              <input
+                type="text"
+                className="w-full bg-[#1a1a2e] border border-[#2d2d44] text-gray-200 text-sm px-3 py-2 rounded"
+                placeholder="例如：llama3.1、qwen2.5-72b、mistral-large"
+                value={modelConfig.customModel}
+                onChange={(e) => setModelConfig({ customModel: e.target.value })}
+              />
+            </div>
           </div>
-          <div>
-            <label className="text-gray-400 text-xs block mb-1">模型名称</label>
-            <input
-              type="text"
-              className="w-full bg-[#1a1a2e] border border-[#2d2d44] text-gray-200 text-sm px-3 py-2 rounded"
-              placeholder="例如：llama3.1、qwen2.5-72b、mistral-large"
-              value={modelConfig.customModel}
-              onChange={(e) => setModelConfig({ customModel: e.target.value })}
-            />
-          </div>
-        </>
+        </div>
       )}
 
       <div>

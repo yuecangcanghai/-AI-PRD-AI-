@@ -16,7 +16,7 @@ export const useConfigStore = create<ConfigState>()(
       modelConfig: {
         provider: 'openai',
         apiKey: '',
-        model: 'gpt-5',
+        model: 'gpt-5.6-terra',
         temperature: 0.7,
         maxTokens: 4096,
         language: 'zh',
