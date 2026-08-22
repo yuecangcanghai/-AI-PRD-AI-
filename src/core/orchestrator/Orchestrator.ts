@@ -160,6 +160,9 @@ export class Orchestrator {
       productForm: (values.productForm || '') as PRDData['meta']['productForm'],
       coreProblem: (values.coreProblem || '') as PRDData['meta']['coreProblem'],
       constraints: (values.constraints || '') as PRDData['meta']['constraints'],
+      // V-model required: "whose problem, in what scene"
+      targetUser: (values.targetUser || '').trim(),
+      initialScene: (values.initialScene || '').trim(),
     });
 
     // 2. Dismiss the onboarding card UI.
@@ -170,6 +173,8 @@ export class Orchestrator {
       `【产品设定】`,
       `- 产品名称：${values.projectName || '（未填写）'}`,
       `- 一句话定位：${values.oneLiner || '（未填写）'}`,
+      `- 为谁解决：${values.targetUser || '（未填写）'}`,
+      `- 发生在什么场景：${values.initialScene || '（未填写）'}`,
       `- 目标市场：${values.targetMarket || '（未填写）'}`,
       `- 产品形态：${values.productForm || '（未填写）'}`,
       `- 核心问题类型：${values.coreProblem || '（未填写）'}`,
@@ -282,11 +287,17 @@ export class Orchestrator {
       case Stage.CriticalValidation:
         prdStore.clearValidation();
         break;
+      case Stage.FieldResearch:
+        prdStore.clearSceneSurveys();
+        break;
       case Stage.UserGroupAnalysis:
         prdStore.clearUserGroups();
         break;
       case Stage.RequirementsDecomposition:
         prdStore.clearRequirements();
+        break;
+      case Stage.SolutionMirror:
+        prdStore.clearMirrorReview();
         break;
       case Stage.PRDGeneration:
         prdStore.clearFinalPRD();

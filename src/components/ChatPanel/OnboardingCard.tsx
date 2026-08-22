@@ -16,13 +16,21 @@ const selectBadgeCls =
 export function OnboardingCard() {
   const [projectName, setProjectName] = useState('');
   const [oneLiner, setOneLiner] = useState('');
+  // V-model required fields: "whose problem" and "in what scene"
+  const [targetUser, setTargetUser] = useState('');
+  const [initialScene, setInitialScene] = useState('');
   const [targetMarket, setTargetMarket] = useState('');
   const [productForm, setProductForm] = useState('');
   const [coreProblem, setCoreProblem] = useState('');
   const [constraints, setConstraints] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const canSubmit = projectName.trim().length > 0 && oneLiner.trim().length > 0 && !submitting;
+  const canSubmit =
+    projectName.trim().length > 0 &&
+    oneLiner.trim().length > 0 &&
+    targetUser.trim().length > 0 &&
+    initialScene.trim().length > 0 &&
+    !submitting;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -31,6 +39,8 @@ export function OnboardingCard() {
       await orchestrator.submitOnboarding({
         projectName,
         oneLiner,
+        targetUser,
+        initialScene,
         targetMarket,
         productForm,
         coreProblem,
@@ -74,6 +84,36 @@ export function OnboardingCard() {
             placeholder="例：面向独立开发者的 AI 产品顾问，帮助从 0 到 1 输出 PRD"
             value={oneLiner}
             onChange={(e) => setOneLiner(e.target.value)}
+          />
+        </div>
+
+        {/* V-model: "谁的什么问题" — two required fields forcing concrete answers */}
+        <div className="border-l-2 border-[#4ecdc4]/40 pl-3">
+          <p className="text-[10px] text-[#4ecdc4] mb-2 font-bold">
+            🎯 V 模型起点：解决「谁」在「什么场景」下的麻烦
+          </p>
+          <label className={labelCls}>
+            为谁解决 <span className="text-[#4ecdc4]">*</span>
+            <span className="text-gray-600 text-[10px] ml-1">越具体越好，不要写「所有人」</span>
+          </label>
+          <input
+            className={inputCls}
+            placeholder="例：初中班主任 / 小区带娃的妈妈 / 高三理科男生"
+            value={targetUser}
+            onChange={(e) => setTargetUser(e.target.value)}
+          />
+        </div>
+
+        <div className="border-l-2 border-[#4ecdc4]/40 pl-3">
+          <label className={labelCls}>
+            发生在什么场景 <span className="text-[#4ecdc4]">*</span>
+            <span className="text-gray-600 text-[10px] ml-1">具体的时间/地点/事件</span>
+          </label>
+          <input
+            className={inputCls}
+            placeholder="例：每学期安排几十次家访路线时"
+            value={initialScene}
+            onChange={(e) => setInitialScene(e.target.value)}
           />
         </div>
 
@@ -128,7 +168,7 @@ export function OnboardingCard() {
 
       <div className="flex items-center justify-between mt-4">
         <p className="text-gray-500 text-[10px]">
-          {!canSubmit && !submitting && '请填写产品名称与一句话定位'}
+          {!canSubmit && !submitting && '请至少填写产品名、定位、目标用户与场景'}
           {submitting && '正在生成定位初评…'}
         </p>
         <button

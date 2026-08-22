@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { usePRDStore } from '../../core/store/usePRDStore';
 import { useStageStore } from '../../core/store/useStageStore';
-import { Stage } from '../../core/types/stage';
+import { Stage, STAGE_ORDER } from '../../core/types/stage';
 import { SectionCard } from './SectionCard';
 import { orchestrator } from '../../core/orchestrator/Orchestrator';
 import {
@@ -10,6 +10,8 @@ import {
   UserGroupsEditor,
   RequirementsEditor,
   FinalPRDEditor,
+  SceneSurveyEditor,
+  MirrorReviewEditor,
 } from './SectionEditors';
 
 export function ProductCanvas() {
@@ -20,15 +22,8 @@ export function ProductCanvas() {
 
   const getSectionStatus = (stage: Stage): 'locked' | 'active' | 'completed' => {
     if (stage === currentStage) return 'active';
-    const stageOrder = [
-      Stage.PainPointDiscovery,
-      Stage.CriticalValidation,
-      Stage.UserGroupAnalysis,
-      Stage.RequirementsDecomposition,
-      Stage.PRDGeneration,
-    ];
-    const currentIdx = stageOrder.indexOf(currentStage);
-    const stageIdx = stageOrder.indexOf(stage);
+    const currentIdx = STAGE_ORDER.indexOf(currentStage);
+    const stageIdx = STAGE_ORDER.indexOf(stage);
     return stageIdx < currentIdx ? 'completed' : 'locked';
   };
 
@@ -108,7 +103,29 @@ export function ProductCanvas() {
         </SectionCard>
 
         <SectionCard
-          title="3. 用户群体"
+          title="3. 现场调研"
+          status={getSectionStatus(Stage.FieldResearch)}
+          editing={editing === Stage.FieldResearch}
+          onEdit={prd.sceneSurveys.length > 0 ? () => setEditing(Stage.FieldResearch) : undefined}
+        >
+          {editing === Stage.FieldResearch ? (
+            <SceneSurveyEditor onCancel={() => setEditing(null)} onSaved={() => handleSaved(Stage.FieldResearch)} />
+          ) : (
+            prd.sceneSurveys.map((s, i) => (
+              <div key={i} className="bg-[#16213e] rounded p-2 mb-2">
+                <p className="text-[#4ecdc4] text-xs font-bold">📍 {s.interviewee}</p>
+                <p className="text-gray-400 text-[10px]">{s.time} · {s.place}</p>
+                <p className="text-gray-300 text-[10px] mt-1">行为：{s.observedBehavior}</p>
+                <p className="text-gray-300 text-[10px]">卡点：{s.stuckPoint}</p>
+                <p className="text-gray-300 text-[10px]">应对：{s.copingStrategy}</p>
+                {s.directQuote && <p className="text-gray-400 text-[10px] italic mt-1">"{s.directQuote}"</p>}
+              </div>
+            ))
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title="4. 用户群体"
           status={getSectionStatus(Stage.UserGroupAnalysis)}
           editing={editing === Stage.UserGroupAnalysis}
           onEdit={prd.userGroups.personas.length > 0 ? () => setEditing(Stage.UserGroupAnalysis) : undefined}
@@ -133,7 +150,7 @@ export function ProductCanvas() {
         </SectionCard>
 
         <SectionCard
-          title="4. 需求拆解"
+          title="5. 需求拆解"
           status={getSectionStatus(Stage.RequirementsDecomposition)}
           editing={editing === Stage.RequirementsDecomposition}
           onEdit={prd.requirements.features.length > 0 ? () => setEditing(Stage.RequirementsDecomposition) : undefined}
@@ -170,7 +187,34 @@ export function ProductCanvas() {
         </SectionCard>
 
         <SectionCard
-          title="5. 完整 PRD"
+          title="6. 方案照妖镜"
+          status={getSectionStatus(Stage.SolutionMirror)}
+          editing={editing === Stage.SolutionMirror}
+          onEdit={prd.mirrorReview.length > 0 ? () => setEditing(Stage.SolutionMirror) : undefined}
+        >
+          {editing === Stage.SolutionMirror ? (
+            <MirrorReviewEditor onCancel={() => setEditing(null)} onSaved={() => handleSaved(Stage.SolutionMirror)} />
+          ) : (
+            prd.mirrorReview.map((m, i) => (
+              <div key={i} className="bg-[#16213e] rounded p-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-[#4ecdc4] text-xs font-bold">{m.featureName}</p>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold
+                    ${m.verdict === '保留' ? 'bg-green-900 text-green-300' : ''}
+                    ${m.verdict === '替换' ? 'bg-orange-900 text-orange-300' : ''}
+                    ${m.verdict === '删除' ? 'bg-red-900 text-red-300' : ''}
+                  `}>{m.verdict}</span>
+                </div>
+                <p className="text-gray-400 text-[10px]">嘴上说：{m.userSaid}</p>
+                <p className="text-gray-300 text-[10px]">真正目标：{m.realGoal}</p>
+                <p className="text-gray-300 text-[10px]">更简路径：{m.simplerPath}</p>
+              </div>
+            ))
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title="7. 完整 PRD"
           status={getSectionStatus(Stage.PRDGeneration)}
           editing={editing === Stage.PRDGeneration}
           onEdit={prd.finalPRD ? () => setEditing(Stage.PRDGeneration) : undefined}

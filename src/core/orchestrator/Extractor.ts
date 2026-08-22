@@ -76,6 +76,9 @@ export class Extractor {
             affectedPeople: String(item.data.affectedPeople || ''),
             currentSolutions: (item.data.currentSolutions as string[]) || [],
             scene: String(item.data.scene || ''),
+            rawSurface: item.data.rawSurface ? String(item.data.rawSurface) : undefined,
+            sceneSurvey: item.data.sceneSurvey ? String(item.data.sceneSurvey) : undefined,
+            deepWhy: item.data.deepWhy ? String(item.data.deepWhy) : undefined,
           });
           break;
 
@@ -124,6 +127,29 @@ export class Extractor {
 
         case 'final_prd':
           prdStore.setFinalPRD(String(item.data.finalPRD || ''));
+          break;
+
+        case 'scene_survey':
+          prdStore.addSceneSurvey({
+            interviewee: String(item.data.interviewee || ''),
+            time: String(item.data.time || ''),
+            place: String(item.data.place || ''),
+            observedBehavior: String(item.data.observedBehavior || ''),
+            stuckPoint: String(item.data.stuckPoint || ''),
+            copingStrategy: String(item.data.copingStrategy || ''),
+            directQuote: item.data.directQuote ? String(item.data.directQuote) : undefined,
+          });
+          break;
+
+        case 'mirror_review':
+          prdStore.addMirrorReview({
+            featureName: String(item.data.featureName || ''),
+            userSaid: String(item.data.userSaid || ''),
+            realGoal: String(item.data.realGoal || ''),
+            simplerPath: String(item.data.simplerPath || ''),
+            verdict: (item.data.verdict as '保留' | '替换' | '删除') || '保留',
+            rationale: String(item.data.rationale || ''),
+          });
           break;
       }
     }

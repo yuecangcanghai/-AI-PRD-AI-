@@ -26,6 +26,14 @@ function getChecklist(stage: Stage, prd: PRDData): ChecklistItem[] {
         { label: '已得出验证结论', done: Boolean(prd.validation.conclusion) },
         { label: '已给出可行性评分', done: prd.validation.feasibilityScore > 0 },
       ];
+    case Stage.FieldResearch:
+      return [
+        { label: '已完成至少一份现场调研', done: prd.sceneSurveys.length > 0 },
+        {
+          label: '每份调研含受访者、行为、卡点',
+          done: prd.sceneSurveys.length > 0 && prd.sceneSurveys.every((s) => s.interviewee && s.observedBehavior && s.stuckPoint),
+        },
+      ];
     case Stage.UserGroupAnalysis:
       return [
         { label: '已创建至少一个用户画像', done: prd.userGroups.personas.length > 0 },
@@ -35,6 +43,17 @@ function getChecklist(stage: Stage, prd: PRDData): ChecklistItem[] {
       return [
         { label: '至少 3 个 P0 核心功能', done: prd.requirements.features.filter((f) => f.priority === 'P0').length >= 3 },
         { label: '已定义 MVP 范围', done: Boolean(prd.requirements.mvpScope) },
+      ];
+    case Stage.SolutionMirror:
+      return [
+        { label: '已审查至少一个功能', done: prd.mirrorReview.length > 0 },
+        {
+          label: '所有 P0 功能均已审查',
+          done: prd.mirrorReview.length > 0 &&
+            prd.requirements.features
+              .filter((f) => f.priority === 'P0')
+              .every((f) => prd.mirrorReview.some((m) => m.featureName === f.name)),
+        },
       ];
     case Stage.PRDGeneration:
       return [{ label: '已生成完整 PRD', done: Boolean(prd.finalPRD) }];

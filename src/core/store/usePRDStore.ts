@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { PRDData, createEmptyPRD, PainPoint, Persona, Feature } from '../types/prd';
+import { PRDData, createEmptyPRD, PainPoint, Persona, Feature, SceneSurvey, MirrorReview } from '../types/prd';
 
 interface PRDState {
   prd: PRDData;
@@ -16,6 +16,12 @@ interface PRDState {
   setMvpScope: (scope: string) => void;
   addUserStory: (story: string) => void;
   setFinalPRD: (prd: string) => void;
+  addSceneSurvey: (s: SceneSurvey) => void;
+  updateSceneSurvey: (index: number, s: SceneSurvey) => void;
+  clearSceneSurveys: () => void;
+  addMirrorReview: (m: MirrorReview) => void;
+  updateMirrorReview: (index: number, m: MirrorReview) => void;
+  clearMirrorReview: () => void;
   clearValidation: () => void;
   clearUserGroups: () => void;
   clearRequirements: () => void;
@@ -75,6 +81,30 @@ export const usePRDStore = create<PRDState>()(
       setFinalPRD: (prd) =>
         set((state) => ({
           prd: { ...state.prd, finalPRD: prd, meta: { ...state.prd.meta, updatedAt: new Date().toISOString() } },
+        })),
+      addSceneSurvey: (s) =>
+        set((state) => ({
+          prd: { ...state.prd, sceneSurveys: [...state.prd.sceneSurveys, s], meta: { ...state.prd.meta, updatedAt: new Date().toISOString() } },
+        })),
+      updateSceneSurvey: (index, s) =>
+        set((state) => ({
+          prd: { ...state.prd, sceneSurveys: state.prd.sceneSurveys.map((x, i) => (i === index ? s : x)), meta: { ...state.prd.meta, updatedAt: new Date().toISOString() } },
+        })),
+      clearSceneSurveys: () =>
+        set((state) => ({
+          prd: { ...state.prd, sceneSurveys: [], meta: { ...state.prd.meta, updatedAt: new Date().toISOString() } },
+        })),
+      addMirrorReview: (m) =>
+        set((state) => ({
+          prd: { ...state.prd, mirrorReview: [...state.prd.mirrorReview, m], meta: { ...state.prd.meta, updatedAt: new Date().toISOString() } },
+        })),
+      updateMirrorReview: (index, m) =>
+        set((state) => ({
+          prd: { ...state.prd, mirrorReview: state.prd.mirrorReview.map((x, i) => (i === index ? m : x)), meta: { ...state.prd.meta, updatedAt: new Date().toISOString() } },
+        })),
+      clearMirrorReview: () =>
+        set((state) => ({
+          prd: { ...state.prd, mirrorReview: [], meta: { ...state.prd.meta, updatedAt: new Date().toISOString() } },
         })),
       clearValidation: () =>
         set((state) => ({

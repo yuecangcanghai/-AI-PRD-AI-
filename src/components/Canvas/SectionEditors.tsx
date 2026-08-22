@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { usePRDStore } from '../../core/store/usePRDStore';
-import { PainPoint, Persona, Feature } from '../../core/types/prd';
+import { PainPoint, Persona, Feature, SceneSurvey, MirrorReview, MIRROR_VERDICT_OPTIONS } from '../../core/types/prd';
 
 // Shared styles
 const inputCls =
@@ -226,6 +226,110 @@ export function FinalPRDEditor({ onCancel, onSaved }: EditorProps) {
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
+      <EditorActions onCancel={onCancel} onSave={save} />
+    </div>
+  );
+}
+
+export function SceneSurveyEditor({ onCancel, onSaved }: EditorProps) {
+  const { prd, updateSceneSurvey } = usePRDStore();
+  const [draft, setDraft] = useState<SceneSurvey[]>(prd.sceneSurveys.map((s) => ({ ...s })));
+
+  const patch = (i: number, key: keyof SceneSurvey, value: string) =>
+    setDraft((d) => d.map((s, idx) => (idx === i ? { ...s, [key]: value } : s)));
+
+  const save = () => {
+    draft.forEach((s, i) => updateSceneSurvey(i, s));
+    onSaved();
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      {draft.map((s, i) => (
+        <div key={i} className="border border-[#2d2d44] rounded p-2 flex flex-col gap-1.5">
+          <div>
+            <label className={labelCls}>受访者</label>
+            <input className={inputCls} value={s.interviewee} onChange={(e) => patch(i, 'interviewee', e.target.value)} />
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className={labelCls}>时间</label>
+              <input className={inputCls} value={s.time} onChange={(e) => patch(i, 'time', e.target.value)} />
+            </div>
+            <div className="flex-1">
+              <label className={labelCls}>地点</label>
+              <input className={inputCls} value={s.place} onChange={(e) => patch(i, 'place', e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>观察到的行为</label>
+            <textarea className={`${inputCls} resize-none`} rows={2} value={s.observedBehavior} onChange={(e) => patch(i, 'observedBehavior', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>卡点</label>
+            <input className={inputCls} value={s.stuckPoint} onChange={(e) => patch(i, 'stuckPoint', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>应对策略</label>
+            <input className={inputCls} value={s.copingStrategy} onChange={(e) => patch(i, 'copingStrategy', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>原话（可选）</label>
+            <input className={inputCls} value={s.directQuote || ''} onChange={(e) => patch(i, 'directQuote', e.target.value)} />
+          </div>
+        </div>
+      ))}
+      <EditorActions onCancel={onCancel} onSave={save} />
+    </div>
+  );
+}
+
+export function MirrorReviewEditor({ onCancel, onSaved }: EditorProps) {
+  const { prd, updateMirrorReview } = usePRDStore();
+  const [draft, setDraft] = useState<MirrorReview[]>(prd.mirrorReview.map((m) => ({ ...m })));
+
+  const patch = (i: number, key: keyof MirrorReview, value: string) =>
+    setDraft((d) => d.map((m, idx) => (idx === i ? { ...m, [key]: value } : m)));
+
+  const save = () => {
+    draft.forEach((m, i) => updateMirrorReview(i, m));
+    onSaved();
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      {draft.map((m, i) => (
+        <div key={i} className="border border-[#2d2d44] rounded p-2 flex flex-col gap-1.5">
+          <div>
+            <label className={labelCls}>功能名</label>
+            <input className={inputCls} value={m.featureName} onChange={(e) => patch(i, 'featureName', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>用户嘴上说的（更快的马）</label>
+            <input className={inputCls} value={m.userSaid} onChange={(e) => patch(i, 'userSaid', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>真正目标</label>
+            <input className={inputCls} value={m.realGoal} onChange={(e) => patch(i, 'realGoal', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>更简路径</label>
+            <input className={inputCls} value={m.simplerPath} onChange={(e) => patch(i, 'simplerPath', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>裁决</label>
+            <select className={inputCls} value={m.verdict} onChange={(e) => patch(i, 'verdict', e.target.value)}>
+              {MIRROR_VERDICT_OPTIONS.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>理由</label>
+            <textarea className={`${inputCls} resize-none`} rows={2} value={m.rationale} onChange={(e) => patch(i, 'rationale', e.target.value)} />
+          </div>
+        </div>
+      ))}
       <EditorActions onCancel={onCancel} onSave={save} />
     </div>
   );

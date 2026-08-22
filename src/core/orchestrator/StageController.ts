@@ -13,6 +13,11 @@ export class StageController {
       case Stage.CriticalValidation:
         return Boolean(prd.validation.conclusion) && prd.validation.feasibilityScore > 0;
 
+      case Stage.FieldResearch:
+        return prd.sceneSurveys.length > 0 && prd.sceneSurveys.every(
+          (s) => s.interviewee && s.observedBehavior && s.stuckPoint
+        );
+
       case Stage.UserGroupAnalysis:
         return prd.userGroups.personas.length > 0;
 
@@ -20,6 +25,14 @@ export class StageController {
         return (
           prd.requirements.features.filter((f) => f.priority === 'P0').length >= 3 &&
           Boolean(prd.requirements.mvpScope)
+        );
+
+      case Stage.SolutionMirror:
+        return (
+          prd.mirrorReview.length > 0 &&
+          prd.requirements.features
+            .filter((f) => f.priority === 'P0')
+            .every((f) => prd.mirrorReview.some((m) => m.featureName === f.name))
         );
 
       case Stage.PRDGeneration:
@@ -54,11 +67,17 @@ export class StageController {
       case Stage.CriticalValidation:
         stageProgress = prd.validation.conclusion ? 10 : 0;
         break;
+      case Stage.FieldResearch:
+        stageProgress = prd.sceneSurveys.length > 0 ? 10 : 0;
+        break;
       case Stage.UserGroupAnalysis:
         stageProgress = prd.userGroups.personas.length > 0 ? 10 : 0;
         break;
       case Stage.RequirementsDecomposition:
         stageProgress = prd.requirements.features.length > 0 ? 10 : 0;
+        break;
+      case Stage.SolutionMirror:
+        stageProgress = prd.mirrorReview.length > 0 ? 10 : 0;
         break;
       case Stage.PRDGeneration:
         stageProgress = prd.finalPRD ? 20 : 0;

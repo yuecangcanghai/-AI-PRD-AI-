@@ -3,7 +3,8 @@ import { persist } from 'zustand/middleware';
 import { Stage, StageInfo, getInitialStages, STAGE_ORDER } from '../types/stage';
 
 // Hard ceiling on assistant turns within a single stage.
-export const MAX_TURNS_PER_STAGE = 3;
+// Raised to 5 to allow deeper 5-Why probing and real-scene survey (see PromptBuilder).
+export const MAX_TURNS_PER_STAGE = 5;
 
 interface StageState {
   stages: StageInfo[];
