@@ -23,6 +23,32 @@ export interface NewbieGuideState {
   skipped: boolean;
 }
 
+// ── Message volume limits ───────────────────────────────────────────
+// A runaway completeNewbieGuide loop once appended thousands of messages,
+// all of which were persisted. On reload ChatPanel renders every message
+// (no virtualisation, each one parsed by react-markdown), which froze the
+// page. These caps make that failure mode structurally impossible.
+
+/** Hard ceiling on messages held in memory. Oldest are dropped past this. */
+export const MAX_MESSAGES = 200;
+
+/** How many messages get written to localStorage. Lower, to stay far from quota. */
+const MAX_PERSISTED_MESSAGES = 80;
+
+/**
+ * A persisted message count above this can only come from a runaway loop —
+ * a full 7-stage session tops out around 70 messages. Such a session is
+ * treated as unrecoverable and reset outright.
+ */
+const RUNAWAY_MESSAGE_COUNT = 300;
+
+const EMPTY_GUIDE: NewbieGuideState = { step: 0, answers: {}, done: false, skipped: false };
+
+/** Keep only the newest `max` messages. */
+function capMessages(msgs: Message[], max: number = MAX_MESSAGES): Message[] {
+  return msgs.length > max ? msgs.slice(-max) : msgs;
+}
+
 interface ChatState {
   messages: Message[];
   isGenerating: boolean;
@@ -71,7 +97,7 @@ export const useChatStore = create<ChatState>()(
       skipNewbieGuide: () =>
         set((state) => ({ newbieGuide: { ...state.newbieGuide, skipped: true, done: true } })),
       addMessage: (message) =>
-        set((state) => ({ messages: [...state.messages, message] })),
+        set((state) => ({ messages: capMessages([...state.messages, message]) })),
       updateLastAssistantMessage: (content) =>
         set((state) => {
           const msgs = [...state.messages];
@@ -107,11 +133,52 @@ export const useChatStore = create<ChatState>()(
       showOnboardingCard: () => set({ onboardingCard: { submitted: false } }),
       dismissOnboardingCard: () => set({ onboardingCard: null }),
       setStreaming: (streaming) => set({ isGenerating: streaming }),
-      clearMessages: () => set({ messages: [], isGenerating: false, onboardingCard: null, newbieGuide: { step: 0, answers: {}, done: false, skipped: false } }),
+      clearMessages: () => set({ messages: [], isGenerating: false, onboardingCard: null, newbieGuide: { ...EMPTY_GUIDE } }),
     }),
     {
       name: 'productforge-chat',
-      version: 1,
+      version: 2,
+      // Only persist durable state. `rehydrated` and `isGenerating` are
+      // per-session flags — persisting isGenerating:true (tab closed during a
+      // stream) would leave the UI stuck showing "generating" forever.
+      partialize: (state) => ({
+        messages: capMessages(state.messages, MAX_PERSISTED_MESSAGES),
+        onboardingCard: state.onboardingCard,
+        newbieGuide: state.newbieGuide,
+      }) as unknown as ChatState,
+      migrate: (persisted, fromVersion) => {
+        const p = (persisted || {}) as Partial<ChatState>;
+        if (fromVersion >= 2) return p as ChatState;
+
+        // v1 → v2: repair state left behind by the runaway-loop bug.
+        const msgs = Array.isArray(p.messages) ? p.messages : [];
+        const guide: NewbieGuideState = { ...EMPTY_GUIDE, ...(p.newbieGuide || {}) };
+        const answerCount = Object.values(guide.answers || {}).filter(Boolean).length;
+
+        // Two corruption signatures:
+        //  1. Absurd message count — only a loop can produce it.
+        //  2. Guide flagged done without the 5 answers that should have produced it.
+        const isRunaway = msgs.length > RUNAWAY_MESSAGE_COUNT;
+        const isStuckGuide = guide.done && !guide.skipped && answerCount < 5;
+
+        if (isRunaway || isStuckGuide) {
+          console.warn(
+            `[useChatStore] Corrupted session detected (messages=${msgs.length}, ` +
+              `guideDone=${guide.done}, answers=${answerCount}). Resetting chat state.`,
+          );
+          return {
+            ...p,
+            messages: [],
+            onboardingCard: null,
+            newbieGuide: { ...EMPTY_GUIDE },
+          } as ChatState;
+        }
+
+        return {
+          ...p,
+          messages: capMessages(msgs, MAX_PERSISTED_MESSAGES),
+        } as ChatState;
+      },
       onRehydrateStorage: () => {
         // Called after persist finishes restoring from localStorage.
         return (state) => {
@@ -128,6 +195,11 @@ export const useChatStore = create<ChatState>()(
             ...(current as ChatState).newbieGuide,
             ...((p as ChatState | undefined)?.newbieGuide || {}),
           },
+          // Force per-session flags back to their initial values. Pre-v2
+          // localStorage persisted these, so a tab closed mid-stream could
+          // otherwise restore isGenerating:true and lock the input forever.
+          isGenerating: false,
+          rehydrated: false,
         };
       },
     },

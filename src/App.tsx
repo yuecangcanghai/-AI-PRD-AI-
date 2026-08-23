@@ -7,6 +7,7 @@ import { useConfigStore } from './core/store/useConfigStore';
 import { usePRDStore } from './core/store/usePRDStore';
 import { useChatStore } from './core/store/useChatStore';
 import { exportPRD } from './utils/export';
+import { resetSession } from './utils/resetSession';
 
 function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -40,6 +41,17 @@ function App() {
             onClick={() => setSettingsOpen(true)}
           >
             ⚙ 设置
+          </button>
+          <button
+            className="bg-[#2d2d44] text-gray-400 text-xs px-3 py-1.5 rounded hover:bg-[#4a2d2d] hover:text-red-300 transition-colors"
+            title="对话卡住或异常时，用这里清空会话重新开始"
+            onClick={() => {
+              if (window.confirm('重置会话会清空当前对话、PRD 内容和阶段进度（API Key 与模型设置会保留）。\n\n确定继续吗？')) {
+                resetSession();
+              }
+            }}
+          >
+            🔄 重置会话
           </button>
         </div>
       </header>
