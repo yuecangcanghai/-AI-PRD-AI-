@@ -56,8 +56,13 @@ export class Orchestrator {
           askMode: configStore.modelConfig.askMode,
         });
 
-    const messages: ChatMessage[] = chatStore.messages
-      .filter((m) => m.role !== 'system')
+    // Read the history from the LIVE store, not from the `chatStore` snapshot captured
+    // above. zustand's set() replaces the state object, so the snapshot still holds the
+    // pre-addMessage array — using it would silently drop the user's newest message from
+    // the request, and the model would repeat the question it just asked.
+    const messages: ChatMessage[] = useChatStore
+      .getState()
+      .messages.filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
     const assistantMessage: Message = {
@@ -327,8 +332,11 @@ export class Orchestrator {
       latestPrd,
       configStore.modelConfig.language,
     );
-    const messages: ChatMessage[] = chatStore.messages
-      .filter((m) => m.role !== 'system')
+    // Live read, for the same reason as in sendMessage: the snapshot above predates the
+    // 【产品设定】message, which is exactly the content this request is supposed to review.
+    const messages: ChatMessage[] = useChatStore
+      .getState()
+      .messages.filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
     let fullResponse = '';
