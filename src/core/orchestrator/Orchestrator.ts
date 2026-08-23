@@ -177,20 +177,38 @@ export class Orchestrator {
     chatStore.showOnboardingCard();
   }
 
+  private _completingNewbieGuide = false;
+
   // Called when the newbie guide flow finishes: maps answers to onboarding fields
   // and auto-submits the product brief (skipping the manual onboarding card).
-  // Guard: if onboarding data is already present, this was already processed.
+  // Triple-guard against re-entry: instance flag + oneLiner check + try-catch.
   async completeNewbieGuide(): Promise<void> {
+    // Guard 1: Instance-level flag — prevents ANY re-entry within this page session.
+    if (this._completingNewbieGuide) {
+      console.log('[completeNewbieGuide] Already running, skipping re-entry');
+      return;
+    }
+    this._completingNewbieGuide = true;
+
     console.log('[completeNewbieGuide] Start');
     const chatStore = useChatStore.getState();
     const prdStore = usePRDStore.getState();
     const a = chatStore.newbieGuide.answers;
 
-    // Prevent re-entry: if oneLiner already set (e.g. page refresh re-triggered subscribe), skip.
+    // Guard 2: If oneLiner already set (e.g. page refresh re-triggered subscribe), skip.
     if (prdStore.prd.meta.oneLiner) {
       console.log('[completeNewbieGuide] Already processed (oneLiner exists), skipping');
       return;
     }
+
+    // CRITICAL: Set oneLiner IMMEDIATELY as a re-entry marker. This must happen
+    // BEFORE any addMessage() calls, because each addMessage triggers the zustand
+    // subscriber which could otherwise re-enter this function.
+    prdStore.updateMeta({
+      oneLiner: (a.whatToBuild || '').trim(),
+      projectName: '新产品',
+      painDepthHint: a.painDepth || '',
+    });
 
     try {
       // Map guide answers → onboarding fields.
@@ -204,9 +222,6 @@ export class Orchestrator {
         coreProblem: '',
         constraints: a.currentSolution || '',
       };
-
-      // Also persist the pain-depth hint into prd.meta.
-      prdStore.updateMeta({ painDepthHint: a.painDepth || '' });
 
       // Add a personalized transition message summarizing what the user told us.
       const summaryLines: string[] = [];
